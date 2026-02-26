@@ -1,9 +1,11 @@
 # 📥 ESE Welcomer
 
-A professional, fully configurable welcome system for **Open Ticket v4**. Automatically greet new members with a beautiful embed and custom message content.
+A professional, fully configurable welcome and leave system for **Open Ticket v4**. Automatically greet new members or say goodbye to departing ones with beautiful embeds and custom message content.
 
 ## ✨ Features
-* **Custom Embeds:** Full control over titles, descriptions, colors, and footers.
+* **Welcome & Leave Messages:** Separate configurations for both join and leave events.
+* **Custom Embeds:** Full control over titles, descriptions, colors, and footers for both events.
+* **Author Settings:** Configure the author field (name, icon, and URL) for both embeds.
 * **Dynamic Placeholders:** Use `{user}` and `{server}` to personalize messages.
 * **Admin Commands:** Test your setup or reload changes without restarting the bot.
 * **Console Logging:** Keeps track of admin actions with a clean, color-coded log.
@@ -11,33 +13,37 @@ A professional, fully configurable welcome system for **Open Ticket v4**. Automa
 ---
 
 ## ⚙️ Configuration
-The `config.json` file can be found in `./plugins/ese-welcomer/`. Below is a breakdown of every available option:
+The `config.json` file can be found in `./plugins/ese-welcomer/`. Below is a breakdown of the available options:
 
 ### 📍 General Settings
 | Key | Description | Format |
 | :--- | :--- | :--- |
-| `welcomeChannelId` | The ID of the Discord channel where the welcome message will be posted. | 18+ digits |
-| `testTitle` | A text prefix shown only when using the `/welcome test` command. | String |
-| `messageContent` | The text message sent outside/above the embed. | String |
+| `welcomeChannelId` | Channel ID where the welcome message will be posted. | 18+ digits |
+| `leaveChannelId` | Channel ID where the leave message will be posted. | 18+ digits |
+| `testTitle` | Prefix shown during `/welcome test`. | String |
+| `leaveTestTitle` | Prefix shown during `/leave test`. | String |
+| `messageContent` | Text sent above the welcome embed. | String |
+| `leaveMessageContent` | Text sent above the leave embed. | String |
 
-### 🖼️ Embed Settings
+### 🖼️ Embed Settings (for `embed` and `leaveEmbed`)
 | Key | Description | Format |
 | :--- | :--- | :--- |
-| `embed.author.name` | Small text at the very top of the embed. | String |
-| `embed.author.icon` | URL to a small image next to the author name. | URL |
-| `embed.title` | The main bold title of the embed. | String |
-| `embed.description` | The main body text of the welcome message. | String |
-| `embed.color` | The side-strip color in Hex format. | Hex (#ff8c00) |
-| `embed.thumbnail` | Image in the top-right. Set to `"user-icon"` for the member's avatar, or a URL. | "user-icon" / URL |
-| `embed.image` | A large banner image at the bottom. | URL |
-| `embed.footer` | Small text at the bottom of the embed. | String |
-| `embed.timestamp` | Shows the exact time the user joined. | Boolean (true/false) |
+| `author.name` | Small text at the very top. | String |
+| `author.icon` | URL to a small image next to the author name. | URL |
+| `author.url` | A clickable link for the author name. | URL |
+| `title` | The main bold title of the embed. | String |
+| `description` | The main body text of the message. | String |
+| `color` | The side-strip color in Hex format. | Hex (#ffffff) |
+| `thumbnail` | Image in the top-right. Set to `"user-icon"` for member avatar. | "user-icon" / URL |
+| `image` | A large banner image at the bottom. | URL |
+| `footer` | Small text at the bottom. | String |
+| `timestamp` | Shows the exact time of the event. | Boolean (true/false) |
 
 ---
 
 ## 🏷️ Placeholders
-You can use these tags in almost any string field (titles, descriptions, footers, etc.):
-* `{user}`: Mentions the new member (e.g., @Eseclick).
+You can use these tags in almost any string field:
+* `{user}`: Mentions the member (e.g., @User).
 * `{server}`: Displays the name of your Discord server.
 
 ---
@@ -45,15 +51,17 @@ You can use these tags in almost any string field (titles, descriptions, footers
 ## 🛠️ Commands
 These commands require **Administrator** permissions within the Open Ticket system.
 
-* `/welcome test` - Sends a preview of your welcome message (visible only to you).
-* `/welcome reload` - Reloads the `config.json` file so you don't have to restart the bot after making changes.
+* `/welcome test` - Sends a preview of your welcome message.
+* `/welcome reload` - Reloads the configuration for welcome messages.
+* `/leave test` - Sends a preview of your leave message.
+* `/leave reload` - Reloads the configuration for leave messages.
 
 ---
 
 ## 📥 Installation
 1. Download the plugin folder.
 2. Place the `ese-welcomer` folder inside your Open Ticket `plugins` directory.
-3. Configure your `welcomeChannelId` in `config.json`.
+3. Configure your `welcomeChannelId` and `leaveChannelId` in `config.json`.
 4. Restart your bot.
 
 ---
@@ -61,21 +69,38 @@ These commands require **Administrator** permissions within the Open Ticket syst
 ## 📝 Example Config
 ```json
 {
-    "welcomeChannelId": "YOUR_CHANNEL_ID",
-    "testTitle": "This is your welcome embed preview:\n\n",
-    "messageContent": "Welcome {user} to {server}!",
-    "embed": {
-        "author": {
-            "name": "New member in {server}",
-            "icon": "",
-            "url": ""
-        },
-        "title": "Welcome to the server!",
-        "description": "Hey {user}! 👋\n\nYou are now part of our community.\nWe hope you have an amazing time here!",
-        "color": "#ff8c00",
-        "thumbnail": "user-icon",
-        "image": "",
-        "footer": "ESE Welcomer | {server}",
-        "timestamp": true
+  "welcomeChannelId": "YOUR_CHANNEL_ID",
+  "testTitle": "Welcome preview:\n\n",
+  "messageContent": "Welcome {user} to {server}!",
+  "embed": {
+    "color": "#ffffff",
+    "title": "New Member!",
+    "description": "Welcome {user}, we are glad to have you here!",
+    "footer": "ESE Welcomer",
+    "thumbnail": "user-icon",
+    "image": "",
+    "timestamp": true,
+    "author": {
+      "name": "Welcome",
+      "icon": "",
+      "url": ""
     }
+  },
+  "leaveChannelId": "YOUR_CHANNEL_ID",
+  "leaveTestTitle": "Goodbye preview:\n\n",
+  "leaveMessageContent": "{user} has left the server.",
+  "leaveEmbed": {
+    "color": "#ff0000",
+    "title": "Member Left",
+    "description": "Goodbye {user}, we hope to see you back soon!",
+    "footer": "ESE Welcomer",
+    "thumbnail": "user-icon",
+    "image": "",
+    "timestamp": true,
+    "author": {
+      "name": "Goodbye",
+      "icon": "",
+      "url": ""
+    }
+  }
 }
