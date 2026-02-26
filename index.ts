@@ -16,11 +16,20 @@ export interface ESEWelcomerConfig {
         thumbnail: string;
         image: string;
         timestamp: boolean;
-        author: {
-            name: string;
-            icon: string;
-            url: string;
-        }
+        author: { name: string; icon: string; url: string; }
+    };
+    leaveChannelId: string;
+    leaveTestTitle: string;
+    leaveMessageContent: string;
+    leaveEmbed: {
+        color: string;
+        title: string;
+        description: string;
+        footer: string;
+        thumbnail: string;
+        image: string;
+        timestamp: boolean;
+        author: { name: string; icon: string; url: string; }
     }
 }
 
@@ -30,213 +39,169 @@ export class ESEWelcomerJsonConfig extends api.ODJsonConfig {
 
 // 2. DECLARATIONS
 declare module "#opendiscord-types" {
-    export interface ODPluginManagerIds_Default {
-        "ese-welcomer": api.ODPlugin
-    }
-    export interface ODConfigManagerIds_Default {
-        "ese-welcomer:config": ESEWelcomerJsonConfig
-    }
-    export interface ODCheckerManagerIds_Default {
-        "ese-welcomer:config": api.ODChecker
-    }
+    export interface ODPluginManagerIds_Default { "ese-welcomer": api.ODPlugin }
+    export interface ODConfigManagerIds_Default { "ese-welcomer:config": ESEWelcomerJsonConfig }
+    export interface ODCheckerManagerIds_Default { "ese-welcomer:config": api.ODChecker }
     export interface ODSlashCommandManagerIds_Default {
-        "ese-welcomer:command": api.ODSlashCommand
+        "ese-welcomer:welcome-command": api.ODSlashCommand
+        "ese-welcomer:leave-command": api.ODSlashCommand
     }
     export interface ODMessageManagerIds_Default {
-        "ese-welcomer:success-message": { source: "slash" | "other", params: { configData: ESEWelcomerConfig, member: discord.GuildMember }, workers: "ese-welcomer:success-message" }
-        "ese-welcomer:reload-message": { source: "slash", params: { success: boolean }, workers: "ese-welcomer:reload-message" }
+        "ese-welcomer:welcome-msg": { source: "slash" | "other", params: { configData: ESEWelcomerConfig, member: discord.GuildMember }, workers: "ese-welcomer:welcome-msg" }
+        "ese-welcomer:leave-msg": { source: "slash" | "other", params: { configData: ESEWelcomerConfig, member: discord.GuildMember }, workers: "ese-welcomer:leave-msg" }
+        "ese-welcomer:reload-message": { source: "slash", params: { success: boolean, type: string }, workers: "ese-welcomer:reload-message" }
     }
     export interface ODEmbedManagerIds_Default {
-        "ese-welcomer:success-embed": { source: "slash" | "other", params: { configData: ESEWelcomerConfig, member: discord.GuildMember }, workers: "ese-welcomer:success-embed" }
+        "ese-welcomer:welcome-embed": { source: "slash" | "other", params: { configData: ESEWelcomerConfig, member: discord.GuildMember }, workers: "ese-welcomer:welcome-embed" }
+        "ese-welcomer:leave-embed": { source: "slash" | "other", params: { configData: ESEWelcomerConfig, member: discord.GuildMember }, workers: "ese-welcomer:leave-embed" }
     }
 }
 
-// 3. REGISTER CONFIG & CHECKER
+// 3. REGISTER CONFIG
 opendiscord.events.get("onConfigLoad").listen((configs) => {
     configs.add(new ESEWelcomerJsonConfig("ese-welcomer:config", "config.json", "./plugins/ese-welcomer/"))
 })
 
-export const welcomerConfigStructure = new api.ODCheckerObjectStructure("ese-welcomer:config", {
-    children: [
-        { key: "welcomeChannelId", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:channel-id", { minLength: 15 }) },
-        { key: "testTitle", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:test-title", { maxLength: 200 }) },
-        { key: "messageContent", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:content", { maxLength: 2000 }) },
-        {
-            key: "embed", optional: false, priority: 0, checker: new api.ODCheckerObjectStructure("ese-welcomer:embed", {
-                children: [
-                    { key: "author", optional: false, priority: 0, checker: new api.ODCheckerObjectStructure("ese-welcomer:author", {
-                        children: [
-                            { key: "name", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:author-name", { maxLength: 256 }) },
-                            { key: "icon", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:author-icon", {}) },
-                            { key: "url", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:author-url", {}) }
-                        ]
-                    }) },
-                    { key: "title", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:title", { maxLength: 256 }) },
-                    { key: "description", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:desc", { maxLength: 4096 }) },
-                    { key: "color", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:color", { maxLength: 7 }) },
-                    { key: "thumbnail", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:thumb", {}) },
-                    { key: "image", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:image", {}) },
-                    { key: "footer", optional: false, priority: 0, checker: new api.ODCheckerStringStructure("ese-welcomer:footer", { maxLength: 2048 }) },
-                    { key: "timestamp", optional: false, priority: 0, checker: new api.ODCheckerBooleanStructure("ese-welcomer:timestamp", {}) }
-                ]
-            })
-        }
-    ]
-})
-
-opendiscord.events.get("onCheckerLoad").listen((checkers) => {
-    const config = opendiscord.configs.get("ese-welcomer:config")
-    checkers.add(new api.ODChecker("ese-welcomer:config", checkers.storage, 0, config, welcomerConfigStructure))
-})
-
 // 4. UTILITY FUNCTIONS
-const getThumbnailUrl = (member: discord.GuildMember, configThumb: string): string | undefined => {
-    if (configThumb.toLowerCase() === "user-icon") {
-        return member.user.displayAvatarURL({ size: 512 });
-    }
+const getThumbnailUrl = (member: discord.GuildMember | discord.PartialGuildMember, configThumb: string): string | undefined => {
+    if (configThumb.toLowerCase() === "user-icon") return member.user?.displayAvatarURL({ size: 512 });
     return configThumb.startsWith("http") ? configThumb : undefined;
 }
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-// 5. REGISTER SLASH COMMAND
+// 5. REGISTER SLASH COMMANDS
 opendiscord.events.get("onSlashCommandLoad").listen((slash) => {
-    slash.add(new api.ODSlashCommand("ese-welcomer:command", {
-        name: "welcome",
-        description: "Manage welcome messages",
-        type: discord.ApplicationCommandType.ChatInput,
-        contexts: [discord.InteractionContextType.Guild],
-        integrationTypes: [discord.ApplicationIntegrationType.GuildInstall],
-        options: [
-            {
-                type: discord.ApplicationCommandOptionType.Subcommand,
-                name: "test",
-                description: "Test the welcome message"
-            },
-            {
-                type: discord.ApplicationCommandOptionType.Subcommand,
-                name: "reload",
-                description: "Reload the configuration from file"
-            }
-        ]
-    }))
+    const options = [
+        { type: discord.ApplicationCommandOptionType.Subcommand, name: "test", description: "Test the message output" },
+        { type: discord.ApplicationCommandOptionType.Subcommand, name: "reload", description: "Reload the plugin configuration" }
+    ] as any;
+
+    slash.add(new api.ODSlashCommand("ese-welcomer:welcome-command", {
+        name: "welcome", description: "Manage welcome messages", type: 1, contexts: [0], integrationTypes: [0], options: options
+    }));
+    slash.add(new api.ODSlashCommand("ese-welcomer:leave-command", {
+        name: "leave", description: "Manage leave messages", type: 1, contexts: [0], integrationTypes: [0], options: options
+    }));
 })
 
-// 6. REGISTER BUILDERS
+// 6. BUILDERS
 opendiscord.events.get("onEmbedBuilderLoad").listen((embeds) => {
-    embeds.add(new api.ODEmbed("ese-welcomer:success-embed"))
-    embeds.get("ese-welcomer:success-embed").workers.add(
-        new api.ODWorker("ese-welcomer:success-embed", 0, (instance, params, source, cancel) => {
-            const { configData, member } = params;
-            const data = configData.embed;
+    // Welcome Embed
+    embeds.add(new api.ODEmbed("ese-welcomer:welcome-embed"))
+    embeds.get("ese-welcomer:welcome-embed").workers.add(new api.ODWorker("ese-welcomer:welcome-embed", 0, (instance, params) => {
+        const { configData, member } = params;
+        const data = configData.embed;
+        if (data.author && data.author.name) {
+            instance.setAuthor(
+                data.author.name.replace("{user}", member.displayName).replace("{server}", member.guild.name), 
+                data.author.icon.startsWith("http") ? data.author.icon : undefined,
+                data.author.url.startsWith("http") ? data.author.url : undefined
+            );
+        }
+        instance.setTitle((data.title || "Welcome").replace("{server}", member.guild.name));
+        instance.setDescription((data.description || "").replace("{user}", member.toString()).replace("{server}", member.guild.name));
+        instance.setColor((data.color as any) || "#ff8c00");
+        if (data.footer) instance.setFooter(data.footer.replace("{server}", member.guild.name));
+        const thumb = getThumbnailUrl(member, data.thumbnail);
+        if (thumb) instance.setThumbnail(thumb);
+        if (data.timestamp) instance.setTimestamp(new Date());
+    }));
 
-            if (data.author.name) {
-                instance.setAuthor(
-                    data.author.name.replace("{user}", member.displayName).replace("{server}", member.guild.name),
-                    data.author.icon.startsWith("http") ? data.author.icon : undefined,
-                    data.author.url.startsWith("http") ? data.author.url : undefined
-                )
-            }
-
-            instance.setTitle((data.title || "Welcome!").replace("{server}", member.guild.name))
-            instance.setDescription((data.description || "")
-                .replace("{user}", member.toString())
-                .replace("{server}", member.guild.name)
-            )
-            instance.setColor((data.color as any) || "#ff8c00")
-            
-            if (data.footer) instance.setFooter(data.footer.replace("{server}", member.guild.name))
-            
-            const thumb = getThumbnailUrl(member, data.thumbnail);
-            if (thumb) instance.setThumbnail(thumb);
-
-            if (data.image?.startsWith("http")) instance.setImage(data.image)
-            if (data.timestamp) instance.setTimestamp(new Date())
-        })
-    )
+    // Leave Embed
+    embeds.add(new api.ODEmbed("ese-welcomer:leave-embed"))
+    embeds.get("ese-welcomer:leave-embed").workers.add(new api.ODWorker("ese-welcomer:leave-embed", 0, (instance, params) => {
+        const { configData, member } = params;
+        const data = configData.leaveEmbed;
+        if (data.author && data.author.name) {
+            instance.setAuthor(
+                data.author.name.replace("{user}", member.displayName).replace("{server}", member.guild.name), 
+                data.author.icon.startsWith("http") ? data.author.icon : undefined,
+                data.author.url.startsWith("http") ? data.author.url : undefined
+            );
+        }
+        instance.setTitle((data.title || "Goodbye").replace("{user}", member.displayName).replace("{server}", member.guild.name));
+        instance.setDescription((data.description || "").replace("{user}", member.toString()).replace("{server}", member.guild.name));
+        instance.setColor((data.color as any) || "#ff0000");
+        if (data.footer) instance.setFooter(data.footer.replace("{server}", member.guild.name));
+        const thumb = getThumbnailUrl(member, data.thumbnail);
+        if (thumb) instance.setThumbnail(thumb);
+        if (data.timestamp) instance.setTimestamp(new Date());
+    }));
 })
 
 opendiscord.events.get("onMessageBuilderLoad").listen((messages) => {
-    messages.add(new api.ODMessage("ese-welcomer:success-message"))
-    messages.get("ese-welcomer:success-message").workers.add(
-        new api.ODWorker("ese-welcomer:success-message", 0, async (instance, params, source, cancel) => {
-            const { configData, member } = params;
-            instance.addEmbed(await opendiscord.builders.embeds.getSafe("ese-welcomer:success-embed").build(source, params))
-            
-            const fullContent = `${configData.testTitle}${configData.messageContent || ""}`;
-            instance.setContent(fullContent
-                .replace("{user}", member.toString())
-                .replace("{server}", member.guild.name)
-            )
-            if (source === "slash") instance.setEphemeral(true)
-        })
-    )
+    messages.add(new api.ODMessage("ese-welcomer:welcome-msg"));
+    messages.get("ese-welcomer:welcome-msg").workers.add(new api.ODWorker("ese-welcomer:welcome-msg", 0, async (instance, params, source) => {
+        instance.addEmbed(await opendiscord.builders.embeds.getSafe("ese-welcomer:welcome-embed").build(source, params));
+        instance.setContent((params.configData.testTitle + params.configData.messageContent).replace("{user}", params.member.toString()).replace("{server}", params.member.guild.name));
+        if (source === "slash") instance.setEphemeral(true);
+    }));
 
-    messages.add(new api.ODMessage("ese-welcomer:reload-message"))
-    messages.get("ese-welcomer:reload-message").workers.add(
-        new api.ODWorker("ese-welcomer:reload-message", 0, async (instance, params, source, cancel) => {
-            instance.setContent(params.success ? "✅ **ESE-Welcomer configuration successfully reloaded!**" : "❌ **An error occurred while reloading.** Check the console.")
-            if (source === "slash") instance.setEphemeral(true)
-        })
-    )
+    messages.add(new api.ODMessage("ese-welcomer:leave-msg"));
+    messages.get("ese-welcomer:leave-msg").workers.add(new api.ODWorker("ese-welcomer:leave-msg", 0, async (instance, params, source) => {
+        instance.addEmbed(await opendiscord.builders.embeds.getSafe("ese-welcomer:leave-embed").build(source, params));
+        instance.setContent((params.configData.leaveTestTitle + params.configData.leaveMessageContent).replace("{user}", params.member.toString()).replace("{server}", params.member.guild.name));
+        if (source === "slash") instance.setEphemeral(true);
+    }));
+
+    messages.add(new api.ODMessage("ese-welcomer:reload-message"));
+    messages.get("ese-welcomer:reload-message").workers.add(new api.ODWorker("ese-welcomer:reload-message", 0, async (instance, params, source) => {
+        instance.setContent(params.success ? `✅ **ESE-Welcomer ${params.type} configuration successfully reloaded!**` : "❌ **An error occurred during reload.**");
+        if (source === "slash") instance.setEphemeral(true);
+    }));
 })
 
-// 7. COMMAND RESPONDER
+// 7. COMMAND RESPONDERS
 opendiscord.events.get("onCommandResponderLoad").listen((commands) => {
-    const generalConfig = opendiscord.configs.get("opendiscord:general")
-    const responder = new api.ODCommandResponder("ese-welcomer:responder", generalConfig.data.prefix, "welcome")
-    commands.add(responder)
+    const general = opendiscord.configs.get("opendiscord:general");
+    const purplePlugin = "\x1b[35m[PLUGIN]\x1b[0m";
+    const grey = "\x1b[90m";
+    const reset = "\x1b[0m";
 
-    responder.workers.add([
-        new api.ODWorker("ese-welcomer:worker", 0, async (instance, params, source, cancel) => {
-            if (source !== "slash") return;
-            const scope = instance.options.getSubCommand();
+    const welcomeRes = new api.ODCommandResponder("ese-welcomer:welcome-responder", general.data.prefix, "welcome");
+    commands.add(welcomeRes);
+    welcomeRes.workers.add(new api.ODWorker("ese-welcomer:welcome-worker", 0, async (instance, params, source, cancel) => {
+        if (source !== "slash") return;
+        const scope = instance.options.getSubCommand();
+        const config = opendiscord.configs.get("ese-welcomer:config");
+        if (!config || !config.data) return cancel();
+        const formattedUser = capitalize(instance.user.username);
+        if (scope === "test") {
+            console.log(`${purplePlugin} ${formattedUser} used welcome-test! ${grey}(user: ${instance.user.username}, method: slash)${reset}`);
+            instance.reply(await opendiscord.builders.messages.getSafe("ese-welcomer:welcome-msg").build(source, { configData: config.data, member: instance.member as discord.GuildMember }));
+            return cancel();
+        }
+        if (scope === "reload") {
+            await config.init();
+            console.log(`${purplePlugin} ${formattedUser} reloaded welcome config! ${grey}(user: ${instance.user.username}, method: slash)${reset}`);
+            instance.reply(await opendiscord.builders.messages.getSafe("ese-welcomer:reload-message").build(source, { success: true, type: "Welcome" }));
+            return cancel();
+        }
+    }));
 
-            const { guild, channel, user } = instance
-            const perms = await opendiscord.permissions.getPermissions(user, channel, guild!);
-            
-            if (!opendiscord.permissions.hasPermissions("admin", perms)) {
-                instance.reply(await opendiscord.builders.messages.getSafe("opendiscord:error-no-permissions").build(source, { guild: guild!, channel, user, permissions: ["admin"] }))
-                return cancel()
-            }
-
-            // Define the purple log prefix and formatted user
-            const purplePlugin = "\x1b[35m[PLUGIN]\x1b[0m";
-            const formattedUser = user.username.charAt(0).toUpperCase() + user.username.slice(1);
-
-            if (scope === "test") {
-                const config = opendiscord.configs.get("ese-welcomer:config");
-                if (!config || !config.data) return cancel();
-
-                // Capitalized purple logging
-                console.log(`${purplePlugin} ${formattedUser} used welcome-test! (user: ${user.username}, method: slash)`);
-
-                instance.reply(await opendiscord.builders.messages.getSafe("ese-welcomer:success-message").build(source, { 
-                    configData: config.data,
-                    member: instance.member as discord.GuildMember 
-                }));
-                return cancel();
-            }
-
-            if (scope === "reload") {
-                const config = opendiscord.configs.get("ese-welcomer:config");
-                if (!config) return cancel();
-
-                // Capitalized purple logging
-                console.log(`${purplePlugin} ${formattedUser} used welcome-reload! (user: ${user.username}, method: slash)`);
-
-                try {
-                    await config.init(); 
-                    instance.reply(await opendiscord.builders.messages.getSafe("ese-welcomer:reload-message").build(source, { success: true }));
-                } catch (err) {
-                    console.error(err);
-                    instance.reply(await opendiscord.builders.messages.getSafe("ese-welcomer:reload-message").build(source, { success: false }));
-                }
-                return cancel();
-            }
-        })
-    ])
+    const leaveRes = new api.ODCommandResponder("ese-welcomer:leave-responder", general.data.prefix, "leave");
+    commands.add(leaveRes);
+    leaveRes.workers.add(new api.ODWorker("ese-welcomer:leave-worker", 0, async (instance, params, source, cancel) => {
+        if (source !== "slash") return;
+        const scope = instance.options.getSubCommand();
+        const config = opendiscord.configs.get("ese-welcomer:config");
+        if (!config || !config.data) return cancel();
+        const formattedUser = capitalize(instance.user.username);
+        if (scope === "test") {
+            console.log(`${purplePlugin} ${formattedUser} used leave-test! ${grey}(user: ${instance.user.username}, method: slash)${reset}`);
+            instance.reply(await opendiscord.builders.messages.getSafe("ese-welcomer:leave-msg").build(source, { configData: config.data, member: instance.member as discord.GuildMember }));
+            return cancel();
+        }
+        if (scope === "reload") {
+            await config.init();
+            console.log(`${purplePlugin} ${formattedUser} reloaded leave config! ${grey}(user: ${instance.user.username}, method: slash)${reset}`);
+            instance.reply(await opendiscord.builders.messages.getSafe("ese-welcomer:reload-message").build(source, { success: true, type: "Leave" }));
+            return cancel();
+        }
+    }));
 })
 
-// 8. AUTOMATIC JOIN LOGIC
+// 8. AUTOMATIC EVENTS
 opendiscord.events.get("onCodeLoad").listen(() => {
     const client = (opendiscord.client as any).client as discord.Client;
     if (!client) return;
@@ -244,44 +209,54 @@ opendiscord.events.get("onCodeLoad").listen(() => {
     client.on("guildMemberAdd", async (member) => {
         const config = opendiscord.configs.get("ese-welcomer:config");
         if (!config || !config.data) return;
-
         const data = config.data;
-        const channel = client.channels.cache.get(data.welcomeChannelId);
+        const channel = client.channels.cache.get(data.welcomeChannelId) as discord.TextChannel;
         if (!channel || !channel.isTextBased()) return;
-
-        const welcomeEmbed = new discord.EmbedBuilder()
-            .setTitle((data.embed.title || "Welcome!").replace("{server}", member.guild.name))
-            .setDescription((data.embed.description || "")
-                .replace("{user}", member.toString())
-                .replace("{server}", member.guild.name)
-            )
+        
+        const embed = new discord.EmbedBuilder()
+            .setTitle((data.embed.title || "Welcome").replace("{server}", member.guild.name))
+            .setDescription((data.embed.description || "").replace("{user}", member.toString()).replace("{server}", member.guild.name))
             .setColor((data.embed.color as any) || "#ff8c00");
-
-        if (data.embed.author.name) {
-            welcomeEmbed.setAuthor({
-                name: data.embed.author.name.replace("{user}", member.displayName).replace("{server}", member.guild.name),
+        
+        if (data.embed.author && data.embed.author.name) {
+            embed.setAuthor({ 
+                name: data.embed.author.name.replace("{user}", member.displayName), 
                 iconURL: data.embed.author.icon.startsWith("http") ? data.embed.author.icon : undefined,
                 url: data.embed.author.url.startsWith("http") ? data.embed.author.url : undefined
             });
         }
-
-        if (data.embed.footer) welcomeEmbed.setFooter({ text: data.embed.footer.replace("{server}", member.guild.name) });
-        
+        if (data.embed.footer) embed.setFooter({ text: data.embed.footer.replace("{server}", member.guild.name) });
         const thumb = getThumbnailUrl(member, data.embed.thumbnail);
-        if (thumb) welcomeEmbed.setThumbnail(thumb);
+        if (thumb) embed.setThumbnail(thumb);
+        if (data.embed.timestamp) embed.setTimestamp();
+        
+        channel.send({ content: data.messageContent.replace("{user}", member.toString()).replace("{server}", member.guild.name), embeds: [embed] }).catch(() => {});
+    });
 
-        if (data.embed.image?.startsWith("http")) welcomeEmbed.setImage(data.embed.image);
-        if (data.embed.timestamp) welcomeEmbed.setTimestamp();
+    client.on("guildMemberRemove", async (member) => {
+        const config = opendiscord.configs.get("ese-welcomer:config");
+        if (!config || !config.data) return;
+        const data = config.data;
+        const channel = client.channels.cache.get(data.leaveChannelId) as discord.TextChannel;
+        if (!channel || !channel.isTextBased()) return;
+        
+        const embed = new discord.EmbedBuilder()
+            .setTitle((data.leaveEmbed.title || "Goodbye").replace("{user}", member.displayName).replace("{server}", member.guild.name))
+            .setDescription((data.leaveEmbed.description || "").replace("{user}", member.toString()).replace("{server}", member.guild.name))
+            .setColor((data.leaveEmbed.color as any) || "#ff0000");
 
-        try {
-            await (channel as discord.TextChannel).send({
-                content: (data.messageContent || "")
-                    .replace("{user}", member.toString())
-                    .replace("{server}", member.guild.name),
-                embeds: [welcomeEmbed]
+        if (data.leaveEmbed.author && data.leaveEmbed.author.name) {
+            embed.setAuthor({ 
+                name: data.leaveEmbed.author.name.replace("{user}", member.displayName), 
+                iconURL: data.leaveEmbed.author.icon.startsWith("http") ? data.leaveEmbed.author.icon : undefined,
+                url: data.leaveEmbed.author.url.startsWith("http") ? data.leaveEmbed.author.url : undefined
             });
-        } catch (err) {
-            console.error("[ERROR] Welcome message failed:", err);
         }
+        if (data.leaveEmbed.footer) embed.setFooter({ text: data.leaveEmbed.footer.replace("{server}", member.guild.name) });
+        const thumb = getThumbnailUrl(member as any, data.leaveEmbed.thumbnail);
+        if (thumb) embed.setThumbnail(thumb);
+        if (data.leaveEmbed.timestamp) embed.setTimestamp();
+        
+        channel.send({ content: data.leaveMessageContent.replace("{user}", member.toString()).replace("{server}", member.guild.name), embeds: [embed] }).catch(() => {});
     });
 });
