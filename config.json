@@ -1,0 +1,19 @@
+{
+    "welcomeChannelId": "YOUR_CHANNEL_ID_HERE",
+    "testTitle": "This is your welcome embed preview:\n\n",
+    "messageContent": "Welcome {user} to {server}!",
+    "embed": {
+        "author": {
+            "name": "New member in {server}",
+            "icon": "",
+            "url": ""
+        },
+        "title": "Welcome to the server!",
+        "description": "Hey {user}! 👋\n\nYou are now part of our community.\nWe hope you have an amazing time here!",
+        "color": "#ff8c00",
+        "thumbnail": "user-icon",
+        "image": "",
+        "footer": "ESE Welcomer | {server}",
+        "timestamp": true
+    }
+}
