@@ -84,6 +84,31 @@ opendiscord.events.get("onSlashCommandLoad").listen((slash) => {
     }));
 })
 
+// 5.5 REGISTER HELP MENU (Fix: Alle 4 commands apart met slash in het Engels)
+opendiscord.events.get("onHelpMenuComponentLoad").listen((menu) => {
+    const extraCategory = menu.get("opendiscord:extra");
+    
+    extraCategory.add(new api.ODHelpMenuCommandComponent("ese-welcomer:welcome-test", 0, {
+        slashName: "/welcome test",
+        slashDescription: "Test the welcome message output in this channel."
+    }));
+
+    extraCategory.add(new api.ODHelpMenuCommandComponent("ese-welcomer:welcome-reload", 1, {
+        slashName: "/welcome reload",
+        slashDescription: "Reload the welcome message configuration."
+    }));
+
+    extraCategory.add(new api.ODHelpMenuCommandComponent("ese-welcomer:leave-test", 2, {
+        slashName: "/leave test",
+        slashDescription: "Test the leave message output in this channel."
+    }));
+
+    extraCategory.add(new api.ODHelpMenuCommandComponent("ese-welcomer:leave-reload", 3, {
+        slashName: "/leave reload",
+        slashDescription: "Reload the leave message configuration."
+    }));
+})
+
 // 6. BUILDERS
 opendiscord.events.get("onEmbedBuilderLoad").listen((embeds) => {
     // Welcome Embed
